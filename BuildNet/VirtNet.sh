@@ -5,8 +5,8 @@ source topo.config
 function CreateNodes(){
 	echo "======================================"
 	echo "Create Docker Container here, do it by yourself"
-	for h in ${hosts[@]}; do
-		echo create ${h}
+	for h in ${nodes[@]}; do
+		echo create $h
 	done
 }
 
