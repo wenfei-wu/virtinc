@@ -86,6 +86,6 @@ function DestroyLinks(){
 	done
 }
 
-
+#CreateImages
 CreateNodes
 CreateLinks
