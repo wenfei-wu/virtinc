@@ -2,12 +2,12 @@
 
 source topo.config
 
-function CreateImages()
+function create_images()
 {
 	docker build -t mycontainer:v1.1 .
 }
 
-function CreateNodes(){
+function create_nodes(){
 	echo "======================================"
 	echo "Create Docker Container and Start it"
 	for h in ${nodes[@]}; do
@@ -17,21 +17,21 @@ function CreateNodes(){
 	done
 }
 
-function RunContainers() 
+function run_containers() 
 {
 	for h in ${nodes[@]}; do
 		docker start $h
 	done
 }
 
-function StopContainers()
+function stop_containers()
 {
 	for h in ${nodes[@]}; do
 		docker stop $h
 	done
 }
 
-function DestroyContainers()
+function destroy_containers()
 {
 	for h in ${nodes[@]}; do
 		docker stop $h
@@ -39,12 +39,12 @@ function DestroyContainers()
 	done
 }
 
-function DestroyImages()
+function destroy_images()
 {
 	docker rmi mycontainer:v1.0
 }
 
-function CreateLinks(){
+function create_links(){
 	echo "======================================"
 	echo "Create Links"
 
@@ -78,7 +78,7 @@ function CreateLinks(){
 }
 
 
-function DestroyLinks(){
+function destroy_links(){
 	for((i=0;i<3;i++));
 	do
 		id[$i]=$(sudo docker inspect -f '{{.State.Pid}}' ${nodes[$i]})
@@ -86,6 +86,6 @@ function DestroyLinks(){
 	done
 }
 
-#CreateImages
-CreateNodes
-CreateLinks
+#create_images
+create_nodes
+create_links
