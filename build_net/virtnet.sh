@@ -2,7 +2,7 @@
 
 source topo.config
 
-function CreateNodes(){
+function create_nodes(){
 	echo "======================================"
 	echo "Create Docker Container here, do it by yourself"
 	for h in ${nodes[@]}; do
@@ -10,7 +10,7 @@ function CreateNodes(){
 	done
 }
 
-function CreateLinks(){
+function create_links(){
 	echo "======================================"
 	echo "Create Links, do it by yourself"
 	total=${#links[*]}
@@ -20,5 +20,5 @@ function CreateLinks(){
 }
 
 
-CreateNodes
-CreateLinks
+create_nodes
+create_links
