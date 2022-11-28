@@ -4,15 +4,20 @@ source topo.config
 
 function create_images()
 {
-	docker build -t mycontainer:v1.1 .
+	docker build -t mycontainer:v1.3 .
 }
 
 function create_nodes(){
 	echo "======================================"
-	echo "Create Docker Container and Start it"
+	echo "create docker container here"
+	
+	#用于vscode远程登录容器终端，使用时需要修改容器中的相关文件
+	port_cast=(8081 31 8082 32 8083 33)
+	idx=0
+
 	for h in ${nodes[@]}; do
-		docker create --cap-add NET_ADMIN --name $h mycontainer:v1.1
-		docker start $h
+		docker create --cap-add NET_ADMIN --name $h -p ${port_cast[$idx]}:${port_cast[$(($idx+1))]} mycontainer:v1.3
+		idx=$(($idx+2))
 		echo create $h
 	done
 }
@@ -46,7 +51,7 @@ function destroy_images()
 
 function create_links(){
 	echo "======================================"
-	echo "Create Links"
+	echo "create links"
 
 	id=()
 	for((i=0;i<3;i++));
@@ -68,23 +73,28 @@ function create_links(){
 		ip link set ${links[$i]}-${links[$i+1]} netns ${id[$idx]}
 		ip netns exec ${id[$idx]} ip link set ${links[$i]}-${links[$i+1]} up
 		ip netns exec ${id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i]}-${links[$i+1]}
-		idx=$idx+1
+		idx=$(($idx+1))
 
 		ip link set ${links[$i+2]}-${links[$i+3]} netns ${id[$idx]}
 		ip netns exec ${id[$idx]} ip link set ${links[$i+2]}-${links[$i+3]} up
 		ip netns exec ${id[$idx]} ip addr add ${ipAddr[$idx]} dev ${links[$i+2]}-${links[$i+3]}
-		idx=$idx+1
+		idx=$(($idx+1))
 	done
 }
 
 
 function destroy_links(){
+	ip link del host1-iface1
+	ip link del host2-iface1
+	
 	for((i=0;i<3;i++));
 	do
 		id[$i]=$(sudo docker inspect -f '{{.State.Pid}}' ${nodes[$i]})
 		ip netns del ${id[$i]}
 	done
 }
+
+
 
 #create_images
 create_nodes
