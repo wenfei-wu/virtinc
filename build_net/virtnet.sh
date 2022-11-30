@@ -24,6 +24,8 @@ function create_nodes(){
 
 function run_containers() 
 {
+	systemctl daemon-reload
+	systemctl restart docker
 	for h in ${nodes[@]}; do
 		docker start $h
 	done
@@ -46,7 +48,7 @@ function destroy_containers()
 
 function destroy_images()
 {
-	docker rmi mycontainer:v1.0
+	docker rmi mycontainer:v1.3
 }
 
 function create_links(){
@@ -96,6 +98,47 @@ function destroy_links(){
 
 
 
-#create_images
-create_nodes
-create_links
+case $1 in
+	"-ci")
+		echo "create images"
+		create_images
+		;;
+	"-cn")
+		#echo "create nodes"
+		create_nodes
+		;;
+	"-rc")
+		echo "run_containers"
+		run_containers
+		;;
+	"-sc")
+		echo "stop_containers"
+		stop_containers
+		;;
+	"-dc")
+		echo "destroy_containers"
+		destroy_containers
+		;;
+	"-di")
+		echo "destroy_images"
+		destroy_images
+		;;
+	"-cl")
+		#echo "create Links"
+		create_links
+		;;
+	"-dl")
+		echo "destroy_links"
+		destroy_links
+		;;
+	"-dn")
+		echo "destroy_network"
+		destroy_containers
+		destroy_links
+		;;
+	*)
+    	echo "input error !"
+		;;
+esac
+
+echo $?
