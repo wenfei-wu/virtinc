@@ -5,6 +5,9 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <pcap.h>
+#include <pthread.h>
+
+#define TEST 1
 
 #define INCP_DATA  0
 #define INCP_ACK   1
@@ -17,6 +20,7 @@
 #define SLOT_NUM 50
 #define PORT_NUM 10
 #define DEV_NAME_SIZE 30
+#define IP_ADDR_SIZE 30
 #define MAX_WINDOW 20
 #define RECV_LEN 2048
 
@@ -44,15 +48,13 @@ typedef struct __attribute__((packed)) IP_Header
 typedef struct __attribute__((packed)) INCP_Header
 {
     uint8_t type;
-    uint16_t window_size;
     uint16_t length;
     uint32_t seq_num;
     uint32_t ack_num;
+    uint16_t window_size;
 
     uint8_t pad[3];
 }incp_header_t;//总长度4*int32
-
-
 
 /*******************************************************************************
  * data structures about packet control, ip_header and layer-4 header
@@ -60,6 +62,7 @@ typedef struct __attribute__((packed)) INCP_Header
 typedef struct incp_packet_control_t in_pcb_t;
 struct incp_packet_control_t
 {
+    incp_header_t incp_head;
     char data[BUFFER_SIZE];
     int isacked;
     in_pcb_t * next;
@@ -69,6 +72,7 @@ struct incp_packet_control_t
 typedef struct ip_packet_control_t ip_pcb_t;
 struct ip_packet_control_t
 {
+    ip_header_t ip_head;
     char data[BUFFER_SIZE];
     ip_pcb_t * next;
 };
@@ -95,7 +99,7 @@ typedef struct _packet_info
     uint32_t length_of_incp;
     uint32_t length_of_payload;
 
-    char * payload;
+    char payload[BUFFER_SIZE];
 } packet_info_t;
 
 /*******************************************************************************
@@ -112,14 +116,16 @@ struct _rule
 /*******************************************************************************
  * globals
  ******************************************************************************/
-static int rank;
-static pcap_handler grinder;
-static pcap_t* pcap_handle;
-static int packet_num;
-static char * dev_name;
-static int seq_num;
-static icb_t * icb;
-static FILE * fp;
+int rank;
+pcap_handler grinder;
+pcap_t* pcap_handle;
+//int packet_num;
+int receive_packet_num;
+int send_packet_num;
+char * dev_name;
+int seq_num;
+icb_t * icb;
+FILE * fp;
 
 /*******************************************************************************
  * prototypes
@@ -132,7 +138,7 @@ void decode_incp_ip(packet_info_t * packet_info, char * data);
 void print_packet_info(packet_info_t * packet_info);
 void decode_and_print(unsigned char *argument, const struct pcap_pkthdr *packet_heaher, const unsigned char *packet_content);
 
-void run_receiver();
+void * run_receiver(void *arg);
 void run_sender(char * file_name, char * src, char * dst);
 void run_host(int identity, char * file_name);
 
@@ -141,23 +147,30 @@ void run_host(int identity, char * file_name);
  * states and methods of switches
  ******************************************************************************/
 
-
 // states about rules
-static int file_line;
-static int rules_num;
-static rule_t * action_list;
+int file_line;
+int rules_num;
+rule_t * action_list;
 
 // states about ports
-static int port_num;
-static char dev_group[PORT_NUM][DEV_NAME_SIZE];
+int port_num;
+char dev_group[PORT_NUM][DEV_NAME_SIZE];
 
 // states about threads
+int writer_num;
 
 // states about packet buffer
-static ip_pcb_t * used_slot_head;
-static ip_pcb_t * unused_slot_head;
+ip_pcb_t * used_slot_head;
+ip_pcb_t * unused_slot_head;
 
 // states about locks
+pthread_t writer_list[PORT_NUM];
+pthread_t reader;
+pthread_mutex_t slot_mutex;
+pthread_mutex_t packet_num_mutex;
+pthread_cond_t empty;
+pthread_cond_t full;
+int empty_num;
 
 
 // method to initialize the switch
@@ -170,9 +183,9 @@ void init_buffer();
 
 // method to run the switch
 int run_switch();
-void check_and_write(unsigned char *argument, const struct pcap_pkthdr *packet_heaher, const unsigned char *packet_content);
+void run_writer(unsigned char *argument, const struct pcap_pkthdr *packet_heaher, const unsigned char *packet_content);
 int match_and_send(char * data);//1代表发送成功,0代表失败
-void run_deamon();
+void * run_reader(void *arg);
 void clean_exit();
 /*对于sender/receiver，需要关闭什么呢？？
 receiver：close(cpap),如果打开了写入的文件需要关掉，有滑动窗口的时候需要把窗口内缓存的释放掉，打印一下接到了多少个包
