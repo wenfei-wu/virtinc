@@ -181,11 +181,10 @@ void run_writer(unsigned char *argument, const struct pcap_pkthdr *packet_heaher
 	printf("run_writer\n");
 #endif
 
-	//从自己这发出去的包不能收
+	//从端口2发出去的包不能收
 	if(strcmp(argument, "10.0.1.0") == 0){
 		return;
 	}
-	//从自己这发出去的包不能收
 
 	pthread_mutex_lock(&packet_num_mutex);
 #if TEST
