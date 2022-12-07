@@ -30,10 +30,10 @@ void set_packet_processor(){
 }
 
 //打开网卡，返回ip地址
-uint32_t open_pcap(char * dev_name){
+uint32_t open_pcap(char * dev_name, pcap_t ** pcap_handle){
     char errbuf[PCAP_ERRBUF_SIZE];
-    uint32_t net_ip;    //网络地址
-    uint32_t net_mask;    //子网掩码
+    uint32_t net_ip;    
+    uint32_t net_mask; 
 #if TEST
 	printf("try to find %s\n", dev_name);
 #endif
@@ -44,13 +44,15 @@ uint32_t open_pcap(char * dev_name){
         clean_exit();
     }
 
-    pcap_handle = pcap_open_live(dev_name, BUFSIZ, 1, -1, errbuf);
-    if(pcap_handle == NULL)
+    *pcap_handle = pcap_open_live(dev_name, BUFSIZ, 1, -1, errbuf);
+    if(*pcap_handle == NULL)
     { 
         printf("pcap_open_live(): %s\n", errbuf); 
         clean_exit();
     }
-
+#if TEST
+	printf("find %s successfully\n", dev_name);
+#endif
     return net_ip;
 }
 
@@ -71,8 +73,6 @@ void encode_incp(in_pcb_t * in_pcb , int type, int seq_num, int ack_num, char * 
     printf("payload: %s\n", data);
     printf("payload_length: %ld\n", strlen(data));
     printf("incp_head->seq_num: %d\n", incp_head->seq_num);
-    //printf("length_of_incp: %ld\n", strlen((char*)in_pcb));
-    //printf("%d\n", ((char*)in_pcb)[1]);
     printf("incp_head->length: %d\n", incp_head->length);
 #endif
 }
@@ -106,9 +106,6 @@ void encode_ip(ip_pcb_t * ip_pcb, char * src_ip, char * dst_ip, char * data)
 void decode_incp_ip(packet_info_t * packet_info, char * data){
 #if TEST
     printf("decode_incp_ip\n");
-#endif  
-    //packet_info->packet_id = receive_packet_num;
-#if TEST
     printf("decode_ip\n");
 #endif 
     ip_pcb_t * ip_pcb = (ip_pcb_t*)data;
@@ -144,15 +141,17 @@ void decode_and_print(unsigned char *argument, const struct pcap_pkthdr *packet_
     printf("decode_and_print\n");
 #endif   
     receive_packet_num++;
+    if(receive_packet_num % 10 == 0)
+		printf("receive_packet_num == %d\n", receive_packet_num);
 
-    char buf[BUFFER_SIZE]={};
     ip_header_t * ip_head = (ip_header_t *)packet_content;
+    char buf[BUFFER_SIZE]={};
     memcpy(buf, packet_content, ip_head->length);
     ip_head = (ip_header_t *)buf;
 
-    int tmp_checksum = ip_head->checksum;
+    uint16_t tmp_checksum = ip_head->checksum;
     ip_head->checksum = 0;
-    if(tmp_checksum != compute_checksum(buf, ip_head->length)){
+    if(tmp_checksum != compute_checksum(buf, packet_header->len)){
         printf("Packet %d: checksum not match\n", receive_packet_num);
     }
 
@@ -162,9 +161,16 @@ void decode_and_print(unsigned char *argument, const struct pcap_pkthdr *packet_
         perror("decode_and_print: ");
         clean_exit();
     }
+
+    pthread_mutex_lock(&packet_num_mutex);
     packet_info->packet_id = receive_packet_num;
+    pthread_mutex_unlock(&packet_num_mutex);
+
     decode_incp_ip(packet_info, buf);
+
+#if TEST
     print_packet_info(packet_info);
+#endif 
 
     free(packet_info);
 }
@@ -173,34 +179,39 @@ void decode_and_print(unsigned char *argument, const struct pcap_pkthdr *packet_
 void * run_receiver(void * arg){
 #if TEST
     printf("run_receiver\n");
-   
 #endif
-    set_packet_processor();
 
-    
+    set_packet_processor();
+ 
 #if TEST
     printf("open_pcap\n");
-
 #endif
-    if(arg == NULL){
-        open_pcap(dev_name);
+    if(arg == NULL){//RECEIVER
+        open_pcap(dev_name, &pcap_handle);
         if(pcap_loop(pcap_handle, -1, grinder, NULL) < 0)
         {
             perror("pcap_loop: ");
         }	
+        if(pcap_handle != NULL)
+            pcap_close(pcap_handle);
     }
-    else{
-        uint32_t ip_addr = open_pcap(dev_group[*((int*)arg)]);
-        if(pcap_loop(pcap_handle, 11, grinder, (char*)&ip_addr) < 0)
+    else{//SWITCH
+        int idx = *((int*)arg);
+#if TEST
+    printf("I'm writer %d\n", idx);
+#endif        
+        uint32_t ip_addr = open_pcap(dev_group[idx], &(pcap_handle_group[idx]));
+       
+        struct in_addr addr;
+        memcpy(&addr, &ip_addr, 4);
+
+        if(pcap_loop(pcap_handle_group[idx], -1, grinder, inet_ntoa(addr)) < 0)
         {
             perror("pcap_loop: ");
         }	
-    }
-        
-
-    if(pcap_handle != NULL)
-        pcap_close(pcap_handle);
-	    
+        if(pcap_handle_group[idx] != NULL)
+            pcap_close(pcap_handle_group[idx]);
+    }     
 }
 
 // 从文件中读取字符串，调用encode函数包装之后发送
@@ -220,19 +231,27 @@ void run_sender(char * file_name, char * src, char * dst){
     char buf[BUFFER_SIZE+1];
     memset(buf, 0, sizeof(buf));
     while(fgets(buf, BUFFER_SIZE, fp) != NULL){
-        if(buf[strlen(buf)-1]=='\n')
+        if(buf[strlen(buf)-1] == '\n')
             buf[strlen(buf)-1] = '\0';
         
         in_pcb_t * in_pcb = malloc(sizeof(in_pcb_t));
+        if(in_pcb == NULL){
+            perror("run_sender: ");
+            clean_exit();
+        }
         memset(in_pcb, 0, sizeof(in_pcb_t));
         encode_incp(in_pcb, INCP_DATA, seq_num, 0, buf);
 
         ip_pcb_t * ip_pcb = malloc(sizeof(ip_pcb_t));
+        if(ip_pcb == NULL){
+            perror("run_sender: ");
+            clean_exit();
+        }
         memset(ip_pcb, 0, sizeof(ip_pcb_t));
         encode_ip(ip_pcb, src, dst, (char*)in_pcb);
         ip_header_t * ip_head = (ip_header_t *)ip_pcb;
 
-        u_int32_t ipaddr = open_pcap(dev_name);
+        u_int32_t ipaddr = open_pcap(dev_name, &pcap_handle);
         int send_bytes = pcap_inject(pcap_handle, ip_pcb, ip_head->length);
         if(send_bytes != ip_head->length){
             printf("packet damage: sendbytes = %d length_of_ip = %d\n", 
@@ -240,10 +259,14 @@ void run_sender(char * file_name, char * src, char * dst){
         }
         seq_num++;
         send_packet_num++;
+        if(send_packet_num % 10 == 0)
+			printf("send_packet_num = %d\n", send_packet_num);
         free(ip_pcb);
         free(in_pcb);
         memset(buf, 0, sizeof(buf));
     }
+    if(pcap_handle != NULL)
+        pcap_close(pcap_handle);
     fclose(fp);
 }
 
