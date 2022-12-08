@@ -7,7 +7,7 @@
 #include <pcap.h>
 #include <pthread.h>
 
-#define TEST 1
+#define TEST 0
 
 #define INCP_DATA  0
 #define INCP_ACK   1
@@ -17,7 +17,7 @@
 #define RECEIVER 2
 
 #define BUFFER_SIZE 1480
-#define SLOT_NUM 50
+#define SLOT_NUM 100
 #define PORT_NUM 10
 #define DEV_NAME_SIZE 30
 #define IP_ADDR_SIZE 30
@@ -119,6 +119,7 @@ struct _rule
 int rank;
 pcap_handler grinder;
 pcap_t* pcap_handle;
+pcap_t* pcap_handle_group[PORT_NUM];
 //int packet_num;
 int receive_packet_num;
 int send_packet_num;
@@ -131,7 +132,7 @@ FILE * fp;
  * prototypes
  ******************************************************************************/
 void set_packet_processor();
-uint32_t open_pcap(char * dev_name);//返回网卡地址，也就是src_ip
+uint32_t open_pcap(char * dev_name, pcap_t ** pcap_handle);//返回网卡地址，也就是src_ip
 void encode_incp(in_pcb_t * in_pcb , int type, int seq_num, int ack_num, char * data);
 void encode_ip(ip_pcb_t * ip_pcb, char * src_ip, char * dst_ip, char * data);
 void decode_incp_ip(packet_info_t * packet_info, char * data);
@@ -187,9 +188,7 @@ void run_writer(unsigned char *argument, const struct pcap_pkthdr *packet_heaher
 int match_and_send(char * data);//1代表发送成功,0代表失败
 void * run_reader(void *arg);
 void clean_exit();
-/*对于sender/receiver，需要关闭什么呢？？
-receiver：close(cpap),如果打开了写入的文件需要关掉，有滑动窗口的时候需要把窗口内缓存的释放掉，打印一下接到了多少个包
-*/
+
 
 
 
