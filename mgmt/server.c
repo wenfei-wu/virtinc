@@ -45,12 +45,11 @@ int main(){
                 sprintf(rank_str, "%d", rank);
                 char conn_num_str[NAME_SIZE]=""; 
                 sprintf(conn_num_str, "%d", conn_num);
-                char * argv[] = {"./bin/main.o", rank_str, conn_num_str};
-                //char * argv[] = {"./hello_world", rank_str, conn_num_str};
+                char * argv[] = {"../bin/main.o", rank_str, conn_num_str};
                 char * envp[] = {NULL};
                 dup2(conn_fd, STDOUT_FILENO);
-                execve("./bin/main.o", argv, envp);
-                //execve("./hello_world", argv, envp);
+                execve("../bin/main.o", argv, envp);
+              
             }
         }else if(packet->stop_flag == 1){
             printf("recv stop: rank = %d\n", packet->rank);
