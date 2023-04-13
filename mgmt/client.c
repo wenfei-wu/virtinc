@@ -7,7 +7,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <semaphore.h>
-
+#include <signal.h>
+#include <sys/time.h>
 #include "tiny_web.h"
 
 // 解析用逗号分隔的三个ip地址

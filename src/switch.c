@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <pcap.h>
 #include <pthread.h>
+#include <signal.h>
+
 
 #include "net.h"
 #include "util.h"
@@ -174,7 +176,7 @@ void init_buffer(){
 
 int init_switch(){
 	// 初始化规则列表
-	parse_rulefile("src/switch.config");
+	parse_rulefile("bin/switch.config");
 
 	// 初始化端口
 	port_num = 2;

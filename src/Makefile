@@ -1,9 +1,8 @@
 main.o: util.o host.o switch.o
-	gcc bin/util.o bin/host.o bin/switch.o src/main.c -o bin/main.o -lpcap -pthread
-
+	gcc bin/util.o bin/host.o bin/switch.o main.c -o  bin/main.o -lpcap -pthread
 util.o:
-	cc -c -o bin/util.o src/util.c
+	cc -c -o bin/util.o util.c
 host.o:
-	cc -c -o bin/host.o src/host.c -lpcap
+	cc -c -o bin/host.o host.c -lpcap
 switch.o:
-	cc -c -o bin/switch.o src/switch.c -lpcap -pthread
+	cc -c -o bin/switch.o switch.c -lpcap -pthread
