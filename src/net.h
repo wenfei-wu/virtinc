@@ -166,6 +166,10 @@ struct _rule
 /*******************************************************************************
  * globals
  ******************************************************************************/
+static char * src_ip = "10.0.0.1";
+static char * dst_ip = "10.0.1.1";
+static char * file_name = "text.txt";
+
 int rank;
 pcap_handler grinder;
 pcap_t* pcap_handle;
@@ -207,8 +211,8 @@ int send_ipc(int conn_id, char * text);
 int incp_send(int conn_id, void *addr, unsigned int size, char * src_ip, char * dst_ip); // 构造发送任务，加入队列，监听
 int incp_recv(int conn_id, void *addr, unsigned int size); // 构造recv_state，监听
 
-void * run_receiver(void *arg);
-void * run_sender(void *arg);
+void * run_receiver(void *conn_id);
+void * run_sender(void *conn_id);
 
 void run_host2(int argc, char** argv);
 void run_host1(int argc, char** argv);

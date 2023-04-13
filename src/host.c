@@ -12,6 +12,8 @@
 #include <pcap.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <signal.h>
+
 
 #include "net.h"
 #include "util.h"
@@ -221,7 +223,7 @@ void write_receive_buffer(unsigned char *argument, const struct pcap_pkthdr *pac
 
     // 写入缓冲区
     ip_pcb_t * current = malloc(sizeof(ip_pcb_t));
-    memset(current, 0, sizeof(current));
+    memset(current, 0, sizeof(ip_pcb_t));
     memcpy(current, packet_content, packet_header->len);
 
     pthread_mutex_lock(&receive_buffer_mutex);
@@ -651,7 +653,7 @@ void init_task_queue(){
     pthread_mutex_init(&task_mutex, NULL);
     // 虚拟队列头部
     task_queue = malloc(sizeof(task_t));
-    memset(task_queue, 0, sizeof(task_queue));
+    memset(task_queue, 0, sizeof(task_t));
     task_queue->conn_id = -1;
     last_task = task_queue;
 }
@@ -855,9 +857,6 @@ void run_host2(int argc, char** argv){
 void run_host1(int argc, char** argv){
     signal(SIGALRM, daemon_end); 
     signal(SIGTERM, host_end);
-    char * src = "10.0.0.1";
-    char * dst = "10.0.1.1";
-    char * file_name = "text.txt";
 
     // pcap初始化
     dev_name = "host1-iface1";
@@ -894,13 +893,10 @@ void run_host1(int argc, char** argv){
     }
 
     // 运行sender_list
-    struct arg_t arg_group[MAX_CONN_NUM] = {};
+    int conn_group[MAX_CONN_NUM] = {};
     for(int i = 0; i < conn_num; ++i){ 
-        arg_group[i].conn_id = i;
-        strcpy(arg_group[i].file_name, file_name); 
-        strcpy(arg_group[i].src_ip, src);
-        strcpy(arg_group[i].dst_ip, dst);    
-        int res = pthread_create(&(sender_list[i]), NULL, run_sender, &(arg_group[i]));
+        conn_group[i] = i;
+        int res = pthread_create(&(sender_list[i]), NULL, run_sender, &(conn_group[i]));
         if(res < 0){
             printf("pthread_create error: %d\n", res);
             clean_exit();
@@ -926,12 +922,12 @@ void run_host1(int argc, char** argv){
 }
 
 // 循环阻塞
-void * run_receiver(void * arg){
+void * run_receiver(void * conn_id){
 #if TEST
     printf("run_receiver\n");
 #endif
     // 接收字符串的大小
-    FILE * fp = fopen("text.txt", "r");
+    FILE * fp = fopen(file_name, "r");
     fseek(fp, 0, SEEK_END);
     int file_size = ftell(fp)+1;
     char * buf = (char *)malloc(file_size);
@@ -939,8 +935,7 @@ void * run_receiver(void * arg){
     fclose(fp);
 
     // 接收信息
-    int conn_id = *((int*)arg);
-    int res = incp_recv(conn_id, buf, file_size);
+    int res = incp_recv(*((int*)conn_id), buf, file_size);
     if(res < 0){
         printf("recv error\n");
     }else{
@@ -948,28 +943,24 @@ void * run_receiver(void * arg){
         buf[file_size-1] = '\0';
         // 写到对应文件中去:output_($connid).txt
         char output_file[NAME_SIZE]={};
-        sprintf(output_file, "output_%d.txt", conn_id);
+        sprintf(output_file, "output_%d.txt", *((int*)conn_id));
         fp = fopen(output_file, "w");
         fwrite(buf, sizeof(char), file_size, fp);
         
         fclose(fp);
         printf("receiver end\n");
     }
-
 }
 
 // 从文件中读取字符串，调用send进入发送阻塞
-void * run_sender(void * arg){
-
-    struct arg_t * argument = (struct arg_t *)arg;
-
+void * run_sender(void * conn_id){
 #if TEST
     printf("run_sender\n");
-    printf("file_name:%s\n", argument->file_name);
+    printf("file_name:%s\n", file_name);
 #endif
 
     pthread_mutex_lock(&fp_mutex);
-    fp = fopen(argument->file_name, "r");
+    fp = fopen(file_name, "r");
     if(fp == NULL){
         perror("run_sender(): ");
         clean_exit();
@@ -987,7 +978,7 @@ void * run_sender(void * arg){
     fclose(fp);
     pthread_mutex_unlock(&fp_mutex);
 
-    int res = incp_send(argument->conn_id, buf, file_size, argument->src_ip, argument->dst_ip);
+    int res = incp_send(*((int*)conn_id), buf, file_size, src_ip, dst_ip);
     if(res < 0){
         printf("send error!\n");
     }else{

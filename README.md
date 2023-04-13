@@ -1,7 +1,7 @@
 # virtinc
 
 This project is to emulate a virtual network on a single machine (laptop, server, or workstation). 
-In the virtual network, the hosts and switches are Docker containers, and their physical links are veth peers. 
+In the virtual network, the hosts and swicthes are Docker containers, and their physical links are veth peers. 
 
 In the host/switch containers, we use libpcap for packet IO. On hosts, we build a user-level network stack;
 on switches, we build the the switch logic and the In-Network Computation (INC) logic.
