@@ -1,0 +1,19 @@
+# rules about calc1
+
+# 建立连接，生成 p, g, p^a
+{
+src: 10.0.0.1;
+flag: 3;
+new_flag: 5;
+action: 5;
+port: 1;
+}
+
+# 建立连接，收到 g^b
+{
+src: 10.0.4.1;
+flag: 4;
+new_flag: 6;
+action: 4;
+port: 1;
+}

@@ -157,7 +157,6 @@ case $1 in
     "-uc")
 	echo "update_code"
 	update_code
-	;;
     *)
     	echo "input error !"
 	;;

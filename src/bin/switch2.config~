@@ -1,0 +1,46 @@
+# rules about switch transmission
+
+# 建立连接，得到 g, p, g^a
+{
+src: 10.0.0.1;
+flag: 3; 
+new_flag: 3;
+port: 2;
+}
+
+# 建立连接，calc2 回复
+{
+src: 10.0.0.1;
+flag: 5;
+new_flag: 2;
+port: 1;
+}
+
+# 建立连接，host2 回复
+{
+src: 10.0.4.1;
+flag: 4; 
+new_flag: 4;
+port: 2;
+}
+
+# 建立连接，calc2 生成 key 及 g^b
+{
+src: 10.0.4.1;
+flag: 6;
+new_flag: 4;
+port: 3;
+}
+
+# 传输文件或内容，加密后传输
+{
+src: 10.0.0.1;
+port: 1;
+}
+
+# 传输文件或内容，解密后传输
+{
+src: 10.0.4.1;
+port: 3;
+}
+

@@ -1,0 +1,19 @@
+# rules about calc1
+
+# 建立连接，收到 p, g, g^a，不返回
+{
+src: 10.0.0.1;
+flag: 3;
+new_flag: 5;
+action: 1;
+port: 1;
+}
+
+# 建立连接，发送 g^b, key
+{
+src: 10.0.4.1;
+flag: 4;
+new_flag: 6;
+action: 6;
+port: 1;
+}

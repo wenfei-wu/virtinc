@@ -7,4 +7,4 @@ client: util.o
 server: util.o
 	gcc -o bin/server bin/util.o server.c -lpcap -pthread
 switch: util.o
-	g++ -o bin/switch -I. -I/usr/include/cryptopp util.c switch.cpp -lpcap -pthread -lcryptopp -lpthread
+	gcc -o bin/switch -I. -I/usr/include/cryptopp bin/util.o switch.cpp -lpcap -pthread -lcryptopp -lpthread

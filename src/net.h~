@@ -42,28 +42,44 @@
  ******************************************************************************/
 typedef struct __attribute__((packed)) IP_Header
 {
-    uint8_t version:4, headlen:4; // 版本信息(前4位)，头长度(后4位)
-    uint8_t type_of_service;      // 服务类型8位
-    uint16_t length;              // 整个数据包长度
-    uint16_t packet_id;           // 数据包标识
-    uint16_t slice_info;          // 分片使用
-    uint8_t ttl;                  // 存活时间
-    uint8_t type_of_protocol;     // 协议类型
-    uint16_t checksum;            // 校验和
-    uint32_t src_ip;              // 源ip
-    uint32_t dst_ip;              // 目的ip
+  uint8_t version:4, headlen:4; // 版本信息(前4位)，头长度(后4位)
+  uint8_t type_of_service;      // 服务类型8位
+  uint16_t length;              // 整个数据包长度
+  uint16_t packet_id;           // 数据包标识
+  uint16_t slice_info;          // 分片使用
+  uint8_t ttl;                  // 存活时间
+  uint8_t type_of_protocol;     // 协议类型
+  uint16_t checksum;            // 校验和
+  uint32_t src_ip;              // 源ip
+  uint32_t dst_ip;              // 目的ip
 }ip_header_t; // 总长度5*int32
+
+/**** flag
+ * 1: ACK
+ * 2: 用于建立通信时
+ * 3: 需要 calc 生成质数及原根 / 传输质数及原根
+ * 4: 回复建立通信
+ * 5: 传输质数及原根 (calc only
+ * 6: 传输 key (calc only
+ * 7: trans file
+*** 举例：host1 向 host2 建立通信过程
+*** A -x> B 表示 A 向 B 发包，flag 为 x
+* host1 -2> switch1 -3> calc1(生成g,p,a，传输g,p,g^a) -5> switch1 -3> switch2 
+  -3> calc2(记录g,p,g^a, 不传输) -5> switch2 -2> host2
+* host2 -4> switch2 -4> calc2(生成b，传输g^{ab},g^b) -6> switch2(记录g^{ab}，传输g^b) 
+  -4> switch1 -4> calc1(传输g^{ab}) -6> switch1 -4> host1
+*****/
 
 typedef struct __attribute__((packed)) INCP_Header
 {
-    uint8_t conn_id;
-    uint32_t seq_num;
-    uint8_t ack_flag;
-    uint16_t payload_length; // payload的长度（ack为0）
-    uint16_t offset;
-    uint8_t msg_head; // 第一个报文
-    uint8_t msg_tail; // 最后一个报文
-    uint8_t pad;
+  uint8_t conn_id;
+  uint32_t seq_num;
+  uint8_t flag; // {1: ack, 2: hello, 4: hello_ack}
+  uint16_t payload_length; // payload的长度（ack为0）
+  uint16_t offset;
+  uint8_t msg_head; // 第一个报文
+  uint8_t msg_tail; // 最后一个报文
+  uint8_t pad;
 }incp_header_t;//总长度4*int32
 
 /*******************************************************************************
@@ -72,17 +88,17 @@ typedef struct __attribute__((packed)) INCP_Header
 typedef struct __attribute__((packed)) incp_packet_control_t in_pcb_t;
 struct incp_packet_control_t
 {
-    incp_header_t incp_head;
-    char data[INCP_PAYLOAD+1];
-    clock_t time_stamp;
+  incp_header_t incp_head;
+  char data[INCP_PAYLOAD+1];
+  clock_t time_stamp;
 };
 
 typedef struct __attribute__((packed)) ip_packet_control_t ip_pcb_t;
 struct ip_packet_control_t
 {
-    ip_header_t ip_head;
-    char data[BUFFER_SIZE];
-    ip_pcb_t * next;
+  ip_header_t ip_head;
+  char data[BUFFER_SIZE];
+  ip_pcb_t * next;
 };
 
 /*******************************************************************************
@@ -90,85 +106,135 @@ struct ip_packet_control_t
  ******************************************************************************/
 typedef struct _packet_info
 {
-    uint32_t packet_id;
-    uint32_t src_ip;
-    uint32_t type;
-    uint32_t seq_num;
-    uint32_t offset;
+  uint32_t packet_id;
+  uint32_t src_ip;
+  uint32_t type;
+  uint32_t seq_num;
+  uint32_t offset;
 
-    uint32_t length_of_ip;
-    uint32_t length_of_incp;
-    uint32_t length_of_payload;
+  uint32_t length_of_ip;
+  uint32_t length_of_incp;
+  uint32_t length_of_payload;
 
-    char payload[BUFFER_SIZE];
+  char payload[BUFFER_SIZE];
 } packet_info_t;
 
 /*******************************************************************************
  * data structures about sender
  ******************************************************************************/
 struct _send_state{
-    uint8_t conn_id;
-    in_pcb_t ack_window[MAX_WND_SIZE*2];
-    int last_sent;
-    //int last_acked;
-    int ack_until; // 累计最大ack值
-    int last_seq_of_current_task; // 当前任务最后一个packet的序号
+  uint8_t conn_id;
+  in_pcb_t ack_window[MAX_WND_SIZE*2];
+  int last_sent;
+  //int last_acked;
+  int ack_until; // 累计最大ack值
+  int last_seq_of_current_task; // 当前任务最后一个packet的序号
 };
 
 typedef struct _task task_t;
 struct _task
 {
-    int conn_id;
-    void* addr; 
-    int size;
-    int left_size;
-    char * src_ip, * dst_ip;
-    task_t * next;
+  int conn_id;
+  void* addr; 
+  int size;
+  int left_size;
+  char * src_ip, * dst_ip;
+  task_t * next;
 };
 
 /*******************************************************************************
  * data structures about receiver
  ******************************************************************************/
 struct recv_state{
-    uint8_t conn_id;
-    int recv_window[MAX_WND_SIZE*2];
-    int recv_until; // 按序接收到的最大seq_num
-    void *addr; // 接收到的字符串地址
-    int size; // recv_bytes长度
-    int last_seq_of_current_task; // 当前任务最后一个packet的序号
+  uint8_t conn_id;
+  int recv_window[MAX_WND_SIZE*2];
+  int recv_until; // 按序接收到的最大seq_num
+  void *addr; // 接收到的字符串地址
+  int size; // recv_bytes长度
+  int last_seq_of_current_task; // 当前任务最后一个packet的序号
 };
 
 struct arg_t{
-    char file_name[NAME_SIZE];
-    int conn_id;
-    char src_ip[IP_ADDR_SIZE];
-    char dst_ip[IP_ADDR_SIZE];
+  char file_name[NAME_SIZE];
+  int conn_id;
+  char src_ip[IP_ADDR_SIZE];
+  char dst_ip[IP_ADDR_SIZE];
 };
 
 typedef struct _ipc_msg ipc_msg_t;
 struct _ipc_msg
 {
-	long msgtype;
-	char msgtext[IPC_MSG_SIZE];
+  long msgtype;
+  char msgtext[IPC_MSG_SIZE];
 };
 
 /*******************************************************************************
  * data structures about rules
+ * move to rule.h
  ******************************************************************************/
+/*
 typedef struct _rule rule_t;
 struct _rule
 {
-    uint32_t src_ip; 
-    uint32_t output_port;
-    rule_t * next;
+  uint32_t src_ip; 
+  uint32_t output_port;
+  rule_t * next;
 };
+*/
 
+/*******************************************************************************
+ * actions
+ ******************************************************************************/
+
+void sw_send(ip_pcb_t *, int);
+
+pthread_t p_tle_resend;
+
+static const char *init_sw_link_format;
+
+#define KEY_BASE 8
+#define KEY_LENGTH 52
+#define KEY_SIZE KEY_LENGTH
+
+static uint8_t key_key[KEY_LENGTH];
+static uint8_t key_g[KEY_LENGTH];
+static uint8_t key_p[KEY_LENGTH];
+static uint8_t key_a[KEY_LENGTH];
+
+#define WINDOW_SIZE 16
+
+static uint32_t total_packets;
+
+static ip_pcb_t agg_buffer[WINDOW_SIZE];
+static uint32_t agg_p;
+static uint8_t agg_flag[WINDOW_SIZE];
+static uint32_t agg_time[WINDOW_SIZE];
+static uint32_t agg_port[WINDOW_SIZE];
+
+int action_nop(ip_pcb_t *, int);
+int action_clear(ip_pcb_t *, int); // clear payload
+int action_aggregation_src(ip_pcb_t *, int); // from source
+int action_sw_ack(ip_pcb_t *, int); // ack
+int action_aggregation_calc(ip_pcb_t *, int); // from calc
+int action_calc_ack(ip_pcb_t *, int); // g^b -> key
+int action_load_a(ip_pcb_t *, int); // load p, g, g^a
+int action_load_b(ip_pcb_t *, int); // load g^b
+int action_save_a(ip_pcb_t *, int);
+int action_generate_key(ip_pcb_t *, int);
+int action_save_total(ip_pcb_t *, int);
+static int (*action_list[20])(ip_pcb_t *, int) =
+  {action_nop, action_clear,
+   action_aggregation_src, action_sw_ack,
+   action_aggregation_calc, action_calc_ack,
+   action_load_a, action_load_b,
+   action_save_a, action_generate_key,
+   action_save_total};				       
 /*******************************************************************************
  * globals
  ******************************************************************************/
 static char * src_ip = "10.0.0.1";
-static char * dst_ip = "10.0.1.1";
-static char * file_name = "text.txt";
+static char * dst_ip = "10.0.4.1";
+static char * file_name = "text.in";
 
 int rank;
 pcap_handler grinder;
@@ -256,12 +322,12 @@ pcap_t* pcap_handle_group[PORT_NUM];
 
 // states about receive time
 clock_t time_stamp;
-
+/*
 // states about rules
 int file_line;
 int rules_num;
 rule_t * action_list;
-
+*/
 // states about ports
 int port_num;
 char dev_group[PORT_NUM][NAME_SIZE];
@@ -283,13 +349,12 @@ pthread_mutex_t packet_num_mutex;
 pthread_cond_t slot_empty;
 pthread_cond_t slot_full;
 
-
 // method to initialize the switch
 int init_switch();
 void init_port();
-void parse_rulefile(char * file_name);
-void parse_rule(rule_t * rule, char * rule_str);
-void print_rulelist();
+//void parse_rulefile(char * file_name);
+//void parse_rule(rule_t * rule, char * rule_str);
+//void print_rulelist();
 void init_buffer();
 
 // method to run the switch
